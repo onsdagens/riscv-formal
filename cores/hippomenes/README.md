@@ -30,7 +30,7 @@ Transpiles the included Hippomenes Veryl implementation into SystemVerilog. It a
 
 ```
 cd ../..
-cp <HIPPO_PATH>/hippomenes_veryl.f 
+cp hippo_veryl/hippomenes_veryl/hippomenes_veryl.f .
 ```
 
 To copy the Veryl filelist into this directory.
