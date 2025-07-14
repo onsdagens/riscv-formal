@@ -21,16 +21,21 @@ module hippo_decoder_Decoder
     output var logic           o_csr_enable   ,
     output var logic   [3-1:0] o_funct3       ,
     output var logic           o_trap         ,
-    output var logic           o_branch   
+    output var logic           o_branch       ,
+    output var logic           o_jump         ,
+    output var logic   [3-1:0] o_mem_width    ,
+    output var logic           o_mem_we       ,
+    output var logic           o_load_insn
 );
 
     always_comb begin
         // splitters
-        o_rs1    = i_instr.r_type.rs1;
-        o_rs2    = i_instr.r_type.rs2;
-        o_rd     = i_instr.i_type.rd;
-        o_imm    = 0;
-        o_funct3 = i_instr.r_type.funct3;
+        o_rs1       = i_instr.r_type.rs1;
+        o_rs2       = i_instr.r_type.rs2;
+        o_rd        = i_instr.i_type.rd;
+        o_imm       = 0;
+        o_funct3    = i_instr.r_type.funct3;
+        o_mem_width = i_instr.r_type.funct3;
         case (i_instr.r_type.opcode) inside
             hippo_decoder_DecoderPkg::Op_OP_LUI: begin
                 // UType instruction
@@ -42,6 +47,9 @@ module hippo_decoder_Decoder
                 o_rf_we         = 1;
                 o_sub           = 0;
                 o_branch        = 0;
+                o_jump          = 0;
+                o_mem_we        = 0;
+                o_load_insn     = 0;
             end
 
             hippo_decoder_DecoderPkg::Op_OP_AUIPC: begin
@@ -53,6 +61,9 @@ module hippo_decoder_Decoder
                 o_rf_we         = 1;
                 o_sub           = 0;
                 o_branch        = 0;
+                o_jump          = 0;
+                o_mem_we        = 0;
+                o_load_insn     = 0;
             end
 
             hippo_decoder_DecoderPkg::Op_OP_JAL: begin
@@ -61,9 +72,12 @@ module hippo_decoder_Decoder
                 o_alu_b_mux_sel = hippo_decoder_DecoderPkg::AluBMux_B_PC;
                 o_alu_op        = hippo_alu_veryl_ALUPackage::ALUOp_ALU_ADD;
                 o_trap          = 0;
-                o_rf_we         = 0;
+                o_rf_we         = 1;
                 o_sub           = 0;
                 o_branch        = 0;
+                o_jump          = 1;
+                o_mem_we        = 0;
+                o_load_insn     = 0;
             end
 
             hippo_decoder_DecoderPkg::Op_OP_JALR: begin
@@ -75,6 +89,9 @@ module hippo_decoder_Decoder
                 o_rf_we         = 1;
                 o_sub           = 0;
                 o_branch        = 0;
+                o_jump          = 1;
+                o_mem_we        = 0;
+                o_load_insn     = 0;
             end
 
             hippo_decoder_DecoderPkg::Op_OP_BRANCH: begin
@@ -86,6 +103,9 @@ module hippo_decoder_Decoder
                 o_rf_we         = 0;
                 o_sub           = 0;
                 o_branch        = 1;
+                o_jump          = 0;
+                o_mem_we        = 0;
+                o_load_insn     = 0;
             end
 
             hippo_decoder_DecoderPkg::Op_OP_LOAD: begin
@@ -97,6 +117,9 @@ module hippo_decoder_Decoder
                 o_rf_we         = 1;
                 o_sub           = 0;
                 o_branch        = 0;
+                o_jump          = 0;
+                o_mem_we        = 0;
+                o_load_insn     = 1;
             end
 
             hippo_decoder_DecoderPkg::Op_OP_STORE: begin
@@ -108,6 +131,9 @@ module hippo_decoder_Decoder
                 o_rf_we         = 0;
                 o_sub           = 0;
                 o_branch        = 0;
+                o_jump          = 0;
+                o_mem_we        = 1;
+                o_load_insn     = 0;
             end
 
             hippo_decoder_DecoderPkg::Op_OP_ALUI: begin
@@ -120,6 +146,9 @@ module hippo_decoder_Decoder
                 o_rf_we         = 1;
                 o_sub           = 0;
                 o_branch        = 0;
+                o_jump          = 0;
+                o_mem_we        = 0;
+                o_load_insn     = 0;
             end
 
             hippo_decoder_DecoderPkg::Op_OP_ALU: begin
@@ -130,6 +159,9 @@ module hippo_decoder_Decoder
                 o_rf_we         = 1;
                 o_sub           = i_instr.r_type.funct7[5];
                 o_branch        = 0;
+                o_jump          = 0;
+                o_mem_we        = 0;
+                o_load_insn     = 0;
             end
 
             hippo_decoder_DecoderPkg::Op_OP_FENCE: begin
@@ -140,6 +172,9 @@ module hippo_decoder_Decoder
                 o_rf_we         = 0;
                 o_sub           = 0;
                 o_branch        = 0;
+                o_jump          = 0;
+                o_mem_we        = 0;
+                o_load_insn     = 0;
             end
 
             hippo_decoder_DecoderPkg::Op_OP_SYSTEM: begin
@@ -148,9 +183,12 @@ module hippo_decoder_Decoder
                 o_alu_op        = hippo_alu_veryl_ALUPackage::ALUOp'(0);
                 o_trap          = 0;
                 // for now, these are also CSR OPs
-                o_rf_we  = 0;
-                o_sub    = 0;
-                o_branch = 0;
+                o_rf_we     = 0;
+                o_sub       = 0;
+                o_branch    = 0;
+                o_jump      = 0;
+                o_mem_we    = 0;
+                o_load_insn = 0;
             end
 
             default: begin
@@ -162,6 +200,9 @@ module hippo_decoder_Decoder
                 o_rf_we         = 0;
                 o_sub           = 0;
                 o_branch        = 0;
+                o_jump          = 0;
+                o_mem_we        = 0;
+                o_load_insn     = 0;
             end
         endcase
 

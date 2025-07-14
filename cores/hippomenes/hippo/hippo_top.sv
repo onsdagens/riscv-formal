@@ -49,24 +49,15 @@ module hippomenes_veryl_HippoTop
     output var logic [4-1:0]  rvfi_mem_wdata
 );
 
-    // temporary hard sets, remove this later
-    always_comb rvfi_mem_addr  = 0;
-    always_comb rvfi_mem_rmask = 0;
-    always_comb rvfi_mem_wmask = 0;
-    always_comb rvfi_mem_rdata = 0;
-    always_comb rvfi_mem_wdata = 0;
 
-    // Program Counter
-    //    var pc_default: logic<IMemAddrWidth>;
+
+    // ---------- Program Counter ----------
     logic [32-1:0] pc             ;
     logic [32-1:0] pc_next        ;
     logic          take_branch    ;
     logic          misaligned_trap;
-    //assign take_branch = 0;
-    // MUX here for selecting branch target, etc.
-    //assign pc = pc_default;
-
-    // default is just pc = pc + 4
+    logic          take_jump      ;
+    logic [32-1:0] pc_plus4       ; always_comb pc_plus4        = pc + 4;
     always_ff @ (posedge clk_i, negedge rst_i) begin
         if (!rst_i) begin
             pc <= IMemStartAddr;
@@ -74,11 +65,20 @@ module hippomenes_veryl_HippoTop
             pc <= pc_next;
         end
     end
+    // PC Selection (Pc + 4/Branch/Jump etc.)
     always_comb begin
-        if (!(take_branch)) begin
-            pc_next         = pc + 4;
+        // Pc + 4
+        if (!(take_branch) && !(jump_insn)) begin
+            pc_next         = pc_plus4;
             misaligned_trap = ((pc_next[1:0] != 0) ? ( 1 ) : ( 0 ));
-        end else begin
+        end
+        // Branch
+         else if (take_branch) begin
+            pc_next         = alu_res;
+            misaligned_trap = ((alu_res[1:0] != 0) ? ( 1 ) : ( 0 ));
+        end
+        // Jump (probably really there is no difference between take_branch and jump)
+         else begin
             pc_next         = alu_res;
             misaligned_trap = ((alu_res[1:0] != 0) ? ( 1 ) : ( 0 ));
         end
@@ -120,13 +120,20 @@ module hippomenes_veryl_HippoTop
             take_branch = 0;
         end
     end
-    // Instruction Memory
+    // ----------
+
+
+    // ---------- Instruction Memory ----------
     // TODO: Memory generic over data TYPE
     logic [32-1:0] instruction;
     hippo_memory___Memory__32 #(
         .Depth     (IMemAddrWidth ** 2),
         .Writeable (1'b0              )
-        //   InitFile : IMemInitFile      ,
+        // InitFile : IMemInitFile      , Unfortunately, from what i can tell
+        //                                yosys cannot handle non-existant init files.
+        //                                SV spec says if readmemh file does not exist,
+        //                                the memory should be zeroed, we could have
+        //                                dummy files doing exactly that.
     ) instruction_memory (
         .clk_i     (clk_i             ),
         .rst_i     (rst_i             ),
@@ -135,9 +142,10 @@ module hippomenes_veryl_HippoTop
         .data_i    (0                 ),
         .data_o    (instruction       )
     );
+    // ----------
 
-    // Decoder
-    Word            immediate    ; // this should not be of Word.
+    // ---------- Decoder ----------
+    Word            immediate    ;
     CsrAddr         csr_addr     ;
     logic           csr_enable   ;
     Reg             regfile_rs1  ;
@@ -151,6 +159,10 @@ module hippomenes_veryl_HippoTop
     logic           rf_we        ;
     logic   [3-1:0] funct3       ;
     logic           branch_insn  ;
+    logic           jump_insn    ;
+    logic   [3-1:0] mem_width    ;
+    logic           mem_we       ;
+    logic           load_insn    ;
     hippo_decoder_Decoder decoder (
         .i_instr         (Instr'(instruction)),
         .o_imm           (immediate          ),
@@ -166,18 +178,18 @@ module hippomenes_veryl_HippoTop
         .o_trap          (decoder_trap       ),
         .o_rf_we         (rf_we              ),
         .o_funct3        (funct3             ),
-        .o_branch        (branch_insn        )
+        .o_branch        (branch_insn        ),
+        .o_jump          (jump_insn          ),
+        .o_mem_width     (mem_width          ),
+        .o_mem_we        (mem_we             ),
+        .o_load_insn     (load_insn          )
     );
-    //assign imm_ext = {immediate[msb] repeat 20, immediate};
-    // Register File
+    // ----------
+
+
+    // ---------- Register File ----------
     logic [32-1:0] rs1_data;
     logic [32-1:0] rs2_data;
-
-    // Remove these 2 later :)
-    //    let res  : logic<32> = rs1_data + rs2_data;
-    //var res_r: logic<32>;
-    logic [32-1:0] alu_res   ;
-    logic [32-1:0] rf_wb_data; always_comb rf_wb_data = (((regfile_rd != 0)) ? ( alu_res ) : ( 32'(0) )); // I think the RVFI kinda requires this
     veryl_stacked_regfile_RegFileStack #(
         .Depth      (1             ),
         .mask       (GlobalMaskIABI),
@@ -188,13 +200,16 @@ module hippomenes_veryl_HippoTop
         .i_command (veryl_stacked_regfile_RegFilePkg::Command_none), // For now
         .i_a_addr  (regfile_rs1                                   ),
         .i_b_addr  (regfile_rs2                                   ),
-        .i_w_ena   (rf_we                                         ), // For now, we are missing this from decoder
+        .i_w_ena   (rf_we                                         ),
         .i_w_addr  (regfile_rd                                    ),
         .i_w_data  (rf_wb_data                                    ),
         .o_a_data  (rs1_data                                      ),
         .o_b_data  (rs2_data                                      )
     );
-    // Here some machinery for picking ALU sources.
+    // ----------
+
+    // ---------- ALU machinery ----------
+    // Pick ALU source A
     logic [32-1:0] alu_a;
     always_comb begin
         case (alu_a_mux_sel) inside
@@ -209,6 +224,7 @@ module hippomenes_veryl_HippoTop
             end
         endcase
     end
+    // Pick ALU source B
     logic [32-1:0] alu_b;
     always_comb begin
         case (alu_b_mux_sel) inside
@@ -228,6 +244,7 @@ module hippomenes_veryl_HippoTop
     end
 
     // ALU
+    logic [32-1:0] alu_res;
     hippo_alu_veryl_HippoALU alu (
         .a         (alu_a        ),
         .b         (alu_b        ),
@@ -235,8 +252,44 @@ module hippomenes_veryl_HippoTop
         .op        (alu_op       ),
         .res       (alu_res      )
     );
+    // ----------
 
-    // RVFI
+    // ---------- Data Memory ----------
+    logic [32-1:0] dmem_data;
+    logic [4-1:0]  mem_mask ; always_comb mem_mask  = (((mem_width == 0) == 1'b1) ? (
+        4'b0001
+    ) : ((mem_width == 1) == 1'b1) ? (
+        4'b0011
+    ) : ((mem_width == 2) == 1'b1) ? (
+        4'b1111
+    ) : (
+        4'b0000
+    ));
+    hippo_memory_InterleavedMemory data_memory (
+        .clk_i         (clk_i    ),
+        .rst_i         (rst_i    ),
+        .width_i       (mem_mask ),
+        .sign_extend_i (0        ), // this needs fixed
+        .addr_i        (alu_res  ),
+        .data_i        (rs2_data ),
+        .we_i          (mem_we   ),
+        .data_o        (dmem_data)
+    );
+    // ----------
+
+    // ---------- Writeback ----------
+    logic [32-1:0] rf_wb_data; always_comb rf_wb_data = (((regfile_rd != 0)) ? ( ((((jump_insn)) ? ( pc_plus4 ) : ((load_insn)) ? ( dmem_data ) : ( alu_res ))) ) : ( 32'(0) )); // I think the RVFI kinda requires this
+    // ----------
+
+    // ---------- RVFI Specifics ----------
+    // except for rvfi_order, i think if there is any logic here
+    // i think we may be doing something wrong,
+    always_comb rvfi_mem_addr  = alu_res;
+    always_comb rvfi_mem_rmask = 4'b1111; // we do not have any weirdness, so may just go i think
+    always_comb rvfi_mem_wmask = ((mem_we) ? ( mem_mask ) : ( 4'b0000 ));
+    always_comb rvfi_mem_rdata = dmem_data;
+    always_comb rvfi_mem_wdata = rs2_data;
+
     // Instruction metadata
     always_comb rvfi_valid = ~decoder_trap && ~misaligned_trap;
     // this should be unique for each executed instruction
@@ -262,13 +315,13 @@ module hippomenes_veryl_HippoTop
     always_comb rvfi_rs2_addr  = regfile_rs2;
     always_comb rvfi_rs1_rdata = rs1_data;
     always_comb rvfi_rs2_rdata = rs2_data;
-    // these two will need fixing
+
     always_comb rvfi_rd_addr  = (((!rf_we)) ? ( 0 ) : ( regfile_rd ));
     always_comb rvfi_rd_wdata = (((!rf_we)) ? ( 0 ) : ( rf_wb_data ));
 
     // Program Counter
     always_comb rvfi_pc_rdata = 32'(pc);
     always_comb rvfi_pc_wdata = 32'(pc_next);
-
+    // ----------
 endmodule
 //# sourceMappingURL=hippo_top.sv.map
