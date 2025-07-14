@@ -1,0 +1,10 @@
+/home/pawel/veryl_packages_tests/hippomenes_veryl/dependencies/hippo_memory/src/memory.sv
+/home/pawel/veryl_packages_tests/hippomenes_veryl/dependencies/hippo_alu_veryl/src/alu_pkg.sv
+/home/pawel/veryl_packages_tests/hippomenes_veryl/dependencies/hippo_alu_veryl/src/alu.sv
+/home/pawel/veryl_packages_tests/hippomenes_veryl/dependencies/veryl_stacked_regfile/src/regfile_pkg.sv
+/home/pawel/veryl_packages_tests/hippomenes_veryl/dependencies/veryl_stacked_regfile/src/regfile_instance.sv
+/home/pawel/veryl_packages_tests/hippomenes_veryl/dependencies/veryl_stacked_regfile/src/regfile_stack.sv
+/home/pawel/veryl_packages_tests/hippomenes_veryl/dependencies/hippo_decoder/src/config_pkg.sv
+/home/pawel/veryl_packages_tests/hippomenes_veryl/dependencies/hippo_decoder/src/decoder_pkg.sv
+/home/pawel/veryl_packages_tests/hippomenes_veryl/dependencies/hippo_decoder/src/decoder.sv
+/home/pawel/veryl_packages_tests/hippomenes_veryl/target/hippo_top.sv
