@@ -5,6 +5,12 @@ This repo shows a minimal formal verification flow for the Veryl reimplementatio
 - [Yosys OSS Suite](https://yosyshq.readthedocs.io/projects/sby/en/latest/install.html), also install Boolector as listed on the page.
 - [Veryl](https://veryl-lang.org/install/) for transpiling Hippomenes to SystemVerilog.
 - [sv2v](https://github.com/zachjs/sv2v) for transpiling the SystemVerilog to Verilog.
+
+### Install Notes
+On Arch at least, Boolector cannot be built with the packaged GCC (15.1.1 as of writing). I've personally gotten around this by `downgrade`, i.e. `yay -S downgrade` `sudo downgrade gcc` down to GCC 14.2.1.
+
+Also for Arch, `sv2v` provided by AUR, i.e. `yay -S sv2v` is sufficient, and probably less messy for setting up since Haskell and Arch don't seem to play nice.
+
 ## Contents
 - `./hippo_veryl/` The Veryl implementation of Hippomenes. This is pending an actual release, i.e. this directory will eventually disappear in favor of
 actual, released, Veryl packages.
