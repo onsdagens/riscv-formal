@@ -1,1 +1,0 @@
-{"version":3,"file":"config_pkg.sv.map","sources":["../../../../hippo_decoder/src/config_pkg.veryl"],"names":["","package","hippo_decoder_ConfigPkg",";","typedef","logic","[","12","]","CsrAddr","endpackage"],"mappings":"AAAAA,AAAAC,QAAQC,uBAAUC;;;IAGdC,QAAeC,MAAKC,CAACC,MAAEC,EAAlBC,OAAmBN;;AAE5BO"}
