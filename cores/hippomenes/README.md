@@ -15,14 +15,23 @@ This repo shows a minimal formal verification flow for the Veryl reimplementatio
 ## Typical workflow
 
 ```veryl build```
+
 in the directory containing Veryl Hippo transpiles the Veryl code into SystemVerilog. It also generates a filelist, we will need this now.
+
 ``` cp <HIPPO_PATH>/hippomenes_veryl.f ```
+
 To copy the Veryl filelist into this directory.
+
 ``` ./redo.sh ```
+
 To copy the Hippomenes SV into `./hippo`, transpile it into Verilog, and generate checks according to `checks.cfg`
+
 ``` make -C checks -j$(nproc) ```
+
 Runs the formal verification.
 Once that is finished
+
 ``` python failing_tests.py ```
+
 lists the passing/failing checks.
 
