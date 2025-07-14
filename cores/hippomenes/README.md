@@ -6,6 +6,8 @@ This repo shows a minimal formal verification flow for the Veryl reimplementatio
 - [Veryl](https://veryl-lang.org/install/) for transpiling Hippomenes to SystemVerilog.
 - [sv2v](https://github.com/zachjs/sv2v) for transpiling the SystemVerilog to Verilog.
 ## Contents
+- `./hippo_veryl/` The Veryl implementation of Hippomenes. This is pending an actual release, i.e. this directory will eventually disappear in favor of
+actual, released, Veryl packages.
 - `checks.cfg` contains configuration for the checks we want to run. For more details refer to comments in that file.
 - `copy.py` convenience script for copying the Veryl-SV transpilation results into `./hippo`. Relies on the Veryl filelist existing in this directory (`hippomenes_veryl.f`). Should probably not be used standalone.
 - `redo.sh` convenience script for cleaning up this directory, running `copy.py`, generating the `riscv-formal` checks specified by `checks.cfg`, and transpiling the Hippo SV into Verilog.
@@ -15,12 +17,13 @@ This repo shows a minimal formal verification flow for the Veryl reimplementatio
 ## Typical workflow
 
 ```
+cd hippo_veryl/hippomenes_veryl
 veryl build
 ```
-
-in the directory containing Veryl Hippo transpiles the Veryl code into SystemVerilog. It also generates a filelist, we will need this now.
+Transpiles the included Hippomenes Veryl implementation into SystemVerilog. It also generates a filelist, we will need this now.
 
 ```
+cd ../..
 cp <HIPPO_PATH>/hippomenes_veryl.f 
 ```
 

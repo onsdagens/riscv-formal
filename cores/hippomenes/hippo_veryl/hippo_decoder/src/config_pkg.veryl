@@ -1,0 +1,6 @@
+package ConfigPkg {
+
+    // CSR Related
+    type CsrAddr = logic<12>;
+
+}

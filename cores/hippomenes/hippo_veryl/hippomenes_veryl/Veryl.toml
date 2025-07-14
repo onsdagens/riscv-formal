@@ -1,0 +1,12 @@
+[project]
+name = "hippomenes_veryl"
+version = "0.1.0"
+[build]
+source = "src"
+target = { type = "directory", path = "target" }
+exclude_std = true
+
+[dependencies]
+hippo_memory = { path = "../hippo_memory" }
+hippo_decoder = { path = "../hippo_decoder" }
+veryl_stacked_regfile = { path = "../veryl_stacked_regfile" }

@@ -1,0 +1,34 @@
+// src/regfile_instance.veryl
+
+import RegFilePkg::*;
+
+module RegFileInstance #(
+    param mask: logic<32> = 32'hffff_ffff,
+) (
+    i_clk  : input clock, // dedicated clock
+    i_reset: input reset, // dedicated reset
+
+    i_command  : input  Command         ,
+    i_push_data: input  logic  <32> [32],
+    i_pop_data : input  logic  <32> [32],
+    o_data     : output logic  <32> [32],
+) {
+    var regs: logic<32> [32];
+    always_ff {
+        for i: u32 in 0..32 {
+            if i_reset | ~mask[i] {
+                regs[i] = 0;
+            } else {
+                case i_command {
+                    Command::push: regs[i] = i_push_data[i];
+                    Command::pop : regs[i] = i_pop_data[i];
+                    default      : {}
+                }
+            }
+        }
+    }
+
+    always_comb {
+        o_data = regs;
+    }
+}

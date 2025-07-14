@@ -1,0 +1,36 @@
+********************************************
+*  SURELOG SystemVerilog  Compiler/Linter  *
+********************************************
+
+Copyright (c) 2017-2023 Alain Dargelas,
+http://www.apache.org/licenses/LICENSE-2.0
+
+VERSION: 1.84
+BUILT  : Dec 10 2024
+DATE   : 2025-06-23.16:30:30
+COMMAND: ./target/regfile_instance.sv ./target/regfile_pkg.sv ./target/regfile_stack.sv -DYOSYS=1 -DSYNTHESIS=1
+
+[INF:CM0023] Creating log file "/home/pawel/veryl_packages_tests/veryl_stacked_regfile/slpp_all/surelog.log".
+[INF:CP0300] Compilation...
+[INF:CP0301] /home/pawel/veryl_packages_tests/veryl_stacked_regfile/target/regfile_pkg.sv:3:1: Compile package "veryl_stacked_regfile_RegFilePkg".
+[INF:CP0303] /home/pawel/veryl_packages_tests/veryl_stacked_regfile/target/regfile_instance.sv:4:1: Compile module "work@veryl_stacked_regfile_RegFileInstance".
+[INF:CP0303] /home/pawel/veryl_packages_tests/veryl_stacked_regfile/target/regfile_stack.sv:4:1: Compile module "work@veryl_stacked_regfile_RegFileStack".
+[INF:CP0302] Compile class "work@mailbox".
+[INF:CP0302] Compile class "work@process".
+[INF:CP0302] Compile class "work@semaphore".
+[INF:EL0526] Design Elaboration...
+[INF:CP0335] /home/pawel/veryl_packages_tests/veryl_stacked_regfile/target/regfile_stack.sv:101:44: Compile generate block "work@veryl_stacked_regfile_RegFileStack.label[0]".
+[INF:CP0335] /home/pawel/veryl_packages_tests/veryl_stacked_regfile/target/regfile_stack.sv:101:44: Compile generate block "work@veryl_stacked_regfile_RegFileStack.label[1]".
+[INF:CP0335] /home/pawel/veryl_packages_tests/veryl_stacked_regfile/target/regfile_stack.sv:101:44: Compile generate block "work@veryl_stacked_regfile_RegFileStack.label[2]".
+[NTE:EL0503] /home/pawel/veryl_packages_tests/veryl_stacked_regfile/target/regfile_stack.sv:4:1: Top level module "work@veryl_stacked_regfile_RegFileStack".
+[NTE:EL0508] Nb Top level modules: 1.
+[NTE:EL0509] Max instance depth: 3.
+[NTE:EL0510] Nb instances: 4.
+[NTE:EL0511] Nb leaf instances: 0.
+[INF:UH0706] Creating UHDM Model...
+[INF:UH0707] Elaborating UHDM...
+[  FATAL] : 0
+[ SYNTAX] : 0
+[  ERROR] : 0
+[WARNING] : 0
+[   NOTE] : 5

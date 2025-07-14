@@ -1,0 +1,9 @@
+[project]
+name = "hippo_decoder"
+version = "0.1.0"
+[build]
+source = "src"
+target = { type = "directory", path = "target" }
+
+[dependencies]
+hippo_alu_veryl = { path = "../hippo_alu_veryl" }

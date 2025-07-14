@@ -1,0 +1,316 @@
+// these two should be top level
+// or even just parameters, these package files are kind of annoying
+import hippo_decoder::DecoderPkg::*;
+import hippo_decoder::ConfigPkg::*;
+import veryl_stacked_regfile::RegFilePkg::*;
+import hippo_alu_veryl::ALUPackage::*;
+
+module HippoTop #(
+    param IMemAddrWidth: u32                  = 5,
+    param IMemStartAddr: logic<IMemAddrWidth> = 0,
+    //param IMemInitFile : string                = ""                ,
+    param IMemMaxAddr: u32 = IMemAddrWidth ** 2,
+) (
+    clk_i: input clock,
+    rst_i: input reset,
+
+
+
+    // RVFI
+    // Instruction metadata
+    rvfi_valid: output logic    ,
+    rvfi_order: output logic<64>,
+    rvfi_insn : output logic<32>,
+    rvfi_trap : output logic    ,
+    rvfi_halt : output logic    ,
+    rvfi_intr : output logic    ,
+    rvfi_mode : output logic<2> ,
+    rvfi_ixl  : output logic<2> ,
+    // Integer register read/write
+    rvfi_rs1_addr : output logic<5> ,
+    rvfi_rs2_addr : output logic<5> ,
+    rvfi_rs1_rdata: output logic<32>,
+    rvfi_rs2_rdata: output logic<32>,
+    rvfi_rd_addr  : output logic<5> ,
+    rvfi_rd_wdata : output logic<32>,
+    // Program Counter
+    rvfi_pc_rdata: output logic<32>,
+    rvfi_pc_wdata: output logic<32>,
+    // Memory access
+    rvfi_mem_addr : output logic<32>,
+    rvfi_mem_rmask: output logic<4> ,
+    rvfi_mem_wmask: output logic<4> ,
+    rvfi_mem_rdata: output logic<4> ,
+    rvfi_mem_wdata: output logic<4> ,
+) {
+
+
+
+    // ---------- Program Counter ----------
+    var pc: logic<32>;
+    var pc_next: logic<32>;
+    var take_branch: logic;
+    var misaligned_trap: logic; 
+    var take_jump: logic;
+    let pc_plus4: logic<32> = pc + 4;
+    always_ff {
+        if_reset {
+            pc = IMemStartAddr;
+        } else {
+            pc = pc_next;
+        }
+    }
+    // PC Selection (Pc + 4/Branch/Jump etc.)
+    always_comb {
+        // Pc + 4
+        if !(take_branch) && !(jump_insn){
+            pc_next = pc_plus4;
+            misaligned_trap = if pc_next[1:0] != 0 ? 1 : 0;
+        }
+        // Branch
+        else if take_branch {
+            pc_next = alu_res;
+            misaligned_trap = if alu_res[1:0] != 0 ? 1 : 0;
+        }
+        // Jump (probably really there is no difference between take_branch and jump)
+        else {
+            pc_next = alu_res;
+            misaligned_trap = if alu_res[1:0] != 0 ? 1 : 0;
+        }
+    }
+
+    // Branch Logic, note beq is inverse of bne, blt is inverse of bge and bltu is inverse of bgeu, i.e. we can optimize this 
+    always_comb {
+        if branch_insn {
+            let equal:logic = rs1_data == rs2_data;
+            let ge: logic = rs1_data >= rs2_data;
+            let geu: logic = $unsigned(rs1_data) >= $unsigned(rs2_data);
+            case funct3 as BranchOp {
+                BranchOp::BL_BEQ: {
+                    take_branch = equal;
+                }
+                BranchOp::BL_BNE: {
+                    take_branch = ~equal;
+                }
+                BranchOp::BL_BLT: {
+                    take_branch = ~ge;
+                }
+                BranchOp::BL_BGE: {
+                    take_branch = ge;
+                }
+                BranchOp::BL_BLTU: {
+                    take_branch = ~geu;
+                }
+                BranchOp::BL_BGEU: {
+                    take_branch = geu;
+                }
+                default: {
+                    take_branch = 0;
+                }
+            }
+        }
+        else {
+            take_branch = 0;
+        }
+    }
+    // ----------
+
+
+    // ---------- Instruction Memory ----------
+    // TODO: Memory generic over data TYPE
+    var instruction: logic<32>;
+    inst instruction_memory: hippo_memory::Memory::<32> #(
+        Depth    : IMemAddrWidth ** 2,
+        Writeable: false             ,
+        // InitFile : IMemInitFile      , Unfortunately, from what i can tell
+        //                                yosys cannot handle non-existant init files.
+        //                                SV spec says if readmemh file does not exist,
+        //                                the memory should be zeroed, we could have
+        //                                dummy files doing exactly that.
+    ) (
+        clk_i                 ,
+        rst_i                 ,
+        address_i: pc as IMemAddrWidth,
+        we_i     : 0          ,
+        data_i   : 0          ,
+        data_o   : instruction,
+    );
+    // ----------
+
+    // ---------- Decoder ----------
+    var immediate    : Word   ;
+    var csr_addr     : CsrAddr;
+    var csr_enable   : logic  ;
+    var regfile_rs1  : Reg    ;
+    var regfile_rs2  : Reg    ;
+    var regfile_rd   : Reg    ;
+    var alu_a_mux_sel: AluAMux;
+    var alu_b_mux_sel: AluBMux;
+    var alu_op       : ALUOp  ;
+    var decoder_trap : logic  ;
+    var alu_sub_arith: logic;
+    var rf_we: logic;
+    var funct3  : logic<3>;
+    var branch_insn: logic;
+    var jump_insn: logic;
+    var mem_width: logic<3>;
+    var mem_we: logic;
+    var load_insn: logic;
+    inst decoder: hippo_decoder::Decoder (
+        i_instr        : instruction as Instr,
+        o_imm          : immediate           ,
+        o_csr_addr     : csr_addr            ,
+        o_rs1          : regfile_rs1         ,
+        o_rs2          : regfile_rs2         ,
+        o_rd           : regfile_rd          ,
+        o_alu_a_mux_sel: alu_a_mux_sel             ,
+        o_alu_b_mux_sel: alu_b_mux_sel             ,
+        o_alu_op       : alu_op              ,
+        o_sub: alu_sub_arith,
+        o_csr_enable   : csr_enable          ,
+        o_trap         : decoder_trap        ,
+        o_rf_we: rf_we,
+        o_funct3: funct3,
+        o_branch: branch_insn,
+        o_jump: jump_insn,
+        o_mem_width: mem_width,
+        o_mem_we: mem_we,
+        o_load_insn: load_insn,
+    );
+    // ----------
+    
+    
+    // ---------- Register File ----------
+    var rs1_data: logic<32>;
+    var rs2_data: logic<32>;
+    inst reg_file_stack: veryl_stacked_regfile::RegFileStack #(
+        Depth     : 1             ,
+        mask      : GlobalMaskIABI,
+        stack_mask: StackMaskIABI ,
+    ) (
+        i_clk    : clk_i        ,
+        i_reset  : rst_i        ,
+        i_command: Command::none, // For now
+        i_a_addr : regfile_rs1  ,
+        i_b_addr : regfile_rs2  ,
+        i_w_ena  : rf_we   ,
+        i_w_addr : regfile_rd   ,
+        i_w_data : rf_wb_data, 
+        o_a_data : rs1_data     ,
+        o_b_data : rs2_data     ,
+    );
+    // ----------
+
+    // ---------- ALU machinery ----------
+    // Pick ALU source A
+    var alu_a: logic<32>;
+    always_comb {
+        case alu_a_mux_sel {
+            AluAMux::A_RS1: {
+                alu_a = rs1_data;
+            }
+            AluAMux::A_IMM: {
+                alu_a = immediate;
+            }
+            default: {
+                alu_a = 0;
+            }
+        }
+    }
+    // Pick ALU source B
+    var alu_b: logic<32>;
+    always_comb{
+        case alu_b_mux_sel {
+            AluBMux::B_RS2: {
+                alu_b = rs2_data;
+            }
+            AluBMux::B_IMM_EXT: {
+                alu_b = immediate as 32;
+            }
+            AluBMux::B_PC: {
+                alu_b = pc as 32;
+            }
+            default: {
+                alu_b = 0;
+            }
+        }
+    }
+
+    // ALU
+    var alu_res: logic<32>;
+    inst alu: hippo_alu_veryl::HippoALU (
+        a: alu_a,
+        b: alu_b,
+        sub_arith: alu_sub_arith,
+        op: alu_op,
+        res: alu_res,
+    );
+    // ----------
+
+    // ---------- Data Memory ----------
+    var dmem_data: logic<32>;
+    let mem_mask: logic<4> = switch {
+        mem_width == 0 : 4'b0001,
+        mem_width == 1 : 4'b0011,
+        mem_width == 2 : 4'b1111,
+        default:         4'b0000,
+    };
+    inst data_memory: hippo_memory::InterleavedMemory (
+        clk_i: clk_i,
+        rst_i: rst_i,
+        width_i: mem_mask,
+        sign_extend_i: 0, // this needs fixed
+        addr_i: alu_res,
+        data_i: rs2_data,
+        we_i: mem_we,
+        data_o: dmem_data,
+    );
+    // ----------
+
+    // ---------- Writeback ----------
+    let rf_wb_data: logic<32> = if(regfile_rd != 0) ? (if (jump_insn) ? pc_plus4 : if (load_insn) ? dmem_data : alu_res) : 0 as 32;// I think the RVFI kinda requires this 
+    // ----------
+
+    // ---------- RVFI Specifics ----------
+    // except for rvfi_order, i think if there is any logic here
+    // i think we may be doing something wrong,
+    assign rvfi_mem_addr  = alu_res;
+    assign rvfi_mem_rmask = 4'b1111; // we do not have any weirdness, so may just go i think
+    assign rvfi_mem_wmask = if mem_we ? mem_mask : 4'b0000; 
+    assign rvfi_mem_rdata = dmem_data;
+    assign rvfi_mem_wdata = rs2_data;
+
+    // Instruction metadata
+    assign rvfi_valid = ~decoder_trap && ~misaligned_trap;
+    // this should be unique for each executed instruction
+    always_ff {
+        if_reset {
+            rvfi_order = 0;
+        } else {
+            rvfi_order += 1;
+        }
+    }
+    assign rvfi_insn = instruction;
+    assign rvfi_trap = decoder_trap | misaligned_trap;
+    assign rvfi_halt = if pc == IMemMaxAddr ? 1 : 0;
+
+    // unclear, for now no traps, so let's call it 0
+    assign rvfi_intr = 0;
+
+    assign rvfi_mode = 3; // we only support M-Mode.
+    assign rvfi_ixl  = 1; // and only 32-bit operation
+
+    // Integer register read/write
+    assign rvfi_rs1_addr  = regfile_rs1;
+    assign rvfi_rs2_addr  = regfile_rs2;
+    assign rvfi_rs1_rdata = rs1_data;
+    assign rvfi_rs2_rdata = rs2_data;
+
+    assign rvfi_rd_addr  = if (!rf_we) ? 0 : regfile_rd;
+    assign rvfi_rd_wdata = if (!rf_we) ? 0 : rf_wb_data;
+
+    // Program Counter
+    assign rvfi_pc_rdata = pc as 32;
+    assign rvfi_pc_wdata = pc_next as 32;
+    // ----------
+}

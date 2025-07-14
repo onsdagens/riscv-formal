@@ -1,0 +1,25 @@
+module HippoALU (
+    a        : input  logic            <32>,
+    b        : input  logic            <32>,
+    sub_arith: input  logic                ,
+    op       : input  ALUPackage::ALUOp    ,
+    res      : output logic            <32>,
+) {
+    always_comb {
+        case op {
+            ALUPackage::ALUOp::ALU_ADD : res = if sub_arith == 1 ? a - b : a + b;
+            ALUPackage::ALUOp::ALU_SLL : res = a << b[4:0];
+            ALUPackage::ALUOp::ALU_SLT : res = if $signed(a) <: $signed(b) ? 1 : 0;
+            ALUPackage::ALUOp::ALU_SLTU: res = if a <: b ? 1 : 0;
+            ALUPackage::ALUOp::ALU_XOR : res = a ^ b;
+            ALUPackage::ALUOp::ALU_SR  : if sub_arith == 1 {
+                res = $signed(a) >>> b[4:0];
+            } else {
+                res = a >> b[4:0];
+            }
+            ALUPackage::ALUOp::ALU_OR : res = a | b;
+            ALUPackage::ALUOp::ALU_AND: res = a & b;
+            default                   : res = 0;
+        }
+    }
+}

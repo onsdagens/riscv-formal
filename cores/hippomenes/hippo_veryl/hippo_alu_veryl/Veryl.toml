@@ -1,0 +1,7 @@
+[project]
+name = "hippo_alu_veryl"
+version = "0.1.0"
+[build]
+exclude_std = true
+source = "src"
+target = { type = "directory", path = "target" }

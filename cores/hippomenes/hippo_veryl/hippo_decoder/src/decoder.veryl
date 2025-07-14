@@ -1,0 +1,206 @@
+import DecoderPkg::*;
+import ConfigPkg::*;
+import hippo_alu_veryl::ALUPackage::*;
+
+module Decoder (
+    i_instr        : input  Instr  ,
+    o_imm          : output Word   ,
+    o_csr_addr     : output CsrAddr,
+    o_rs1          : output Reg    ,
+    o_rs2          : output Reg    ,
+    o_rd           : output Reg    ,
+    o_rf_we        : output Reg    ,
+    o_alu_a_mux_sel: output AluAMux,
+    o_alu_b_mux_sel: output AluBMux,
+    o_alu_op       : output ALUOp  ,
+    o_sub          : output logic  ,
+    o_csr_enable   : output logic  ,
+    o_funct3       : output logic<3>,
+    o_trap         : output logic  ,
+    o_branch       : output logic,
+    o_jump         : output logic,
+    o_mem_width    : output logic<3>,
+    o_mem_we       : output logic,
+    o_load_insn    : output logic,
+) {
+
+    always_comb {
+        // splitters
+        o_rs1 = i_instr.r_type.rs1;
+        o_rs2 = i_instr.r_type.rs2;
+        o_rd  = i_instr.i_type.rd;
+        o_imm = 0;
+        o_funct3 = i_instr.r_type.funct3;
+        o_mem_width = i_instr.r_type.funct3;
+        case i_instr.r_type.opcode {
+            Op::OP_LUI: {
+                // UType instruction
+                o_imm           = {i_instr.u_type.imm_31_12, 1'0 repeat 12};
+                o_alu_a_mux_sel = AluAMux::A_ZERO;
+                o_alu_b_mux_sel = AluBMux::B_IMM_EXT;
+                o_alu_op        = ALUOp::ALU_OR;
+                o_trap          = 0;
+                o_rf_we         = 1;
+                o_sub = 0;
+                o_branch = 0;
+                o_jump = 0;
+                o_mem_we = 0;
+                o_load_insn = 0;
+            }
+
+            Op::OP_AUIPC: {
+                o_imm           = {i_instr.u_type.imm_31_12, 1'0 repeat 12}; // 20 bit immediate + pc
+                o_alu_a_mux_sel = AluAMux::A_IMM;
+                o_alu_b_mux_sel = AluBMux::B_PC;
+                o_alu_op        = ALUOp::ALU_ADD;
+                o_trap          = 0;
+                o_rf_we         = 1;
+                o_sub = 0;
+                o_branch = 0;
+                o_jump = 0;
+                o_mem_we = 0;
+                o_load_insn = 0;
+            }
+
+            Op::OP_JAL: {
+                o_imm           = {i_instr.j_type.imm_20 repeat 12, i_instr.j_type.imm_19_12, i_instr.j_type.imm_11, i_instr.j_type.imm_10_1, 1'0};
+                o_alu_a_mux_sel = AluAMux::A_IMM;
+                o_alu_b_mux_sel = AluBMux::B_PC;
+                o_alu_op        = ALUOp::ALU_ADD;
+                o_trap          = 0;
+                o_rf_we         = 1;
+                o_sub = 0;
+                o_branch = 0;
+                o_jump = 1;
+                o_mem_we = 0;
+                o_load_insn = 0;
+            }
+
+            Op::OP_JALR: {
+                o_imm           = {i_instr.i_type.imm_11_0[msb] repeat 20, i_instr.i_type.imm_11_0};
+                o_alu_a_mux_sel = AluAMux::A_RS1;
+                o_alu_b_mux_sel = AluBMux::B_IMM_EXT;
+                o_alu_op        = ALUOp::ALU_ADD;
+                o_trap          = 0;
+                o_rf_we         = 1;
+                o_sub = 0;
+                o_branch = 0;
+                o_jump = 1;
+                o_mem_we = 0;
+                o_load_insn = 0;
+            }
+
+            Op::OP_BRANCH: {
+                o_imm           = {i_instr.b_type.imm_12 repeat 20, i_instr.b_type.imm_11, i_instr.b_type.imm_10_5, i_instr.b_type.imm_4_1, 1'0};
+                o_alu_a_mux_sel = AluAMux::A_IMM;
+                o_alu_b_mux_sel = AluBMux::B_PC;
+                o_alu_op        = ALUOp::ALU_ADD;
+                o_trap          = 0;
+                o_rf_we         = 0;
+                o_sub = 0;
+                o_branch = 1;
+                o_jump = 0;
+                o_mem_we = 0;
+                o_load_insn = 0;
+            }
+
+            Op::OP_LOAD: {
+                o_imm           = {i_instr.i_type.imm_11_0[msb] repeat 20, i_instr.i_type.imm_11_0};
+                o_alu_a_mux_sel = AluAMux::A_RS1;
+                o_alu_b_mux_sel = AluBMux::B_IMM_EXT;
+                o_alu_op        = ALUOp::ALU_ADD;
+                o_trap          = 0;
+                o_rf_we         = 1;
+                o_sub = 0;
+                o_branch = 0;
+                o_jump = 0;
+                o_mem_we = 0;
+                o_load_insn = 1;
+            }
+
+            Op::OP_STORE: {
+                o_imm           = {i_instr.s_type.imm_11_5[msb] repeat 20, i_instr.s_type.imm_11_5, i_instr.s_type.imm_4_0};
+                o_alu_a_mux_sel = AluAMux::A_RS1;
+                o_alu_b_mux_sel = AluBMux::B_IMM_EXT;
+                o_alu_op        = ALUOp::ALU_ADD;
+                o_trap          = 0;
+                o_rf_we         = 0;
+                o_sub = 0;
+                o_branch = 0;
+                o_jump = 0;
+                o_mem_we = 1;
+                o_load_insn = 0;
+            }
+
+            Op::OP_ALUI: {
+                // IType
+                o_imm           = {i_instr.i_type.imm_11_0[msb] repeat 20, i_instr.i_type.imm_11_0};
+                o_alu_a_mux_sel = AluAMux::A_RS1;
+                o_alu_b_mux_sel = AluBMux::B_IMM_EXT;
+                o_alu_op        = i_instr.i_type.funct3 as ALUOp;
+                o_trap          = 0;
+                o_rf_we         = 1;
+                o_sub = 0;
+                o_branch = 0;
+                o_jump = 0;
+                o_mem_we = 0;
+                o_load_insn = 0;
+            }
+
+            Op::OP_ALU: {
+                o_alu_a_mux_sel = AluAMux::A_RS1;
+                o_alu_b_mux_sel = AluBMux::B_RS2;
+                o_alu_op        = i_instr.r_type.funct3 as ALUOp;
+                o_trap          = 0;
+                o_rf_we         = 1;
+                o_sub = i_instr.r_type.funct7[5];
+                o_branch = 0;
+                o_jump = 0;
+                o_mem_we = 0;
+                o_load_insn = 0;
+            }
+
+            Op::OP_FENCE: {
+                o_alu_a_mux_sel = 0 as AluAMux;
+                o_alu_b_mux_sel = 0 as AluBMux;
+                o_alu_op        = 0 as ALUOp;
+                o_trap          = 0;
+                o_rf_we         = 0;
+                o_sub = 0;
+                o_branch = 0;
+                o_jump = 0;
+                o_mem_we = 0;
+                o_load_insn = 0;
+            }
+
+            Op::OP_SYSTEM: {
+                o_alu_a_mux_sel = 0 as AluAMux;
+                o_alu_b_mux_sel = 0 as AluBMux;
+                o_alu_op        = 0 as ALUOp;
+                o_trap          = 0;
+                // for now, these are also CSR OPs
+                o_rf_we = 0;
+                o_sub = 0;
+                o_branch = 0;
+                o_jump = 0;
+                o_mem_we = 0;
+                o_load_insn = 0;
+            }
+
+            default: {
+                $display       ("-- non matched op --");
+                o_alu_a_mux_sel = 0 as AluAMux;
+                o_alu_b_mux_sel = 0 as AluBMux;
+                o_alu_op        = 0 as ALUOp;
+                o_trap          = 1;
+                o_rf_we         = 0;
+                o_sub = 0;
+                o_branch = 0;
+                o_jump = 0;
+                o_mem_we = 0;
+                o_load_insn = 0;
+            }
+        }
+
+    }
+}

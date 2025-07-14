@@ -1,0 +1,287 @@
+// TODO: We could make this generic over the word width.
+module InterleavedMemory #(
+    // param INIT_FILE_B0      : string = ""                        ,
+    // param INIT_FILE_B1      : string = ""                        ,
+    // param INIT_FILE_B2      : string = ""                        ,
+    // param INIT_FILE_B3      : string = ""                        ,
+    param MEMORY_DEPTH_BYTES: u32 = 1024                      ,
+    param ADDR_WIDTH        : u32 = $clog2(MEMORY_DEPTH_BYTES),
+    param BLOCK_DEPTH       : u32 = MEMORY_DEPTH_BYTES / 4    ,
+) (
+    clk_i        : input  clock            ,
+    rst_i        : input  reset            ,
+    width_i      : input  logic<4>         , // TODO: make this into a type
+    sign_extend_i: input  logic            ,
+    addr_i       : input  logic<ADDR_WIDTH>, // TODO: this should also be a type
+    data_i       : input  logic<32>        ,
+    we_i         : input  logic            ,
+    data_o       : output logic            ,
+) {
+    var address_clocked    : logic<2>; // cargo cult variables, let's see...
+    var width_clocked      : logic<2>;
+    var sign_extend_clocked: logic   ;
+    var block_0_dout       : logic<8>;
+    var block_1_dout       : logic<8>;
+    var block_2_dout       : logic<8>;
+    var block_3_dout       : logic<8>;
+
+    var block_0_din: logic<8>;
+    var block_1_din: logic<8>;
+    var block_2_din: logic<8>;
+    var block_3_din: logic<8>;
+
+    var block_0_addr: logic<ADDR_WIDTH - 2>;
+    var block_1_addr: logic<ADDR_WIDTH - 2>;
+    var block_2_addr: logic<ADDR_WIDTH - 2>;
+    var block_3_addr: logic<ADDR_WIDTH - 2>;
+
+    var block_0_we: logic;
+    var block_1_we: logic;
+    var block_2_we: logic;
+    var block_3_we: logic;
+
+    let alignment: logic<2> = addr_i[1:0];
+
+    inst block_0: Memory::<8> #(
+        Depth: BLOCK_DEPTH,
+        //     InitFile : INIT_FILE_B0,
+        Writeable: true,
+    ) (
+        clk_i                  ,
+        rst_i                  ,
+        address_i: block_0_addr,
+        we_i     : block_0_we  ,
+        data_i   : block_0_din ,
+        data_o   : block_0_dout,
+    );
+    inst block_1: Memory::<8> #(
+        Depth: BLOCK_DEPTH,
+        //   InitFile : INIT_FILE_B1,
+        Writeable: true,
+    ) (
+        clk_i                  ,
+        rst_i                  ,
+        address_i: block_1_addr,
+        we_i     : block_1_we  ,
+        data_i   : block_1_din ,
+        data_o   : block_1_dout,
+    );
+    inst block_2: Memory::<8> #(
+        Depth: BLOCK_DEPTH,
+        //  InitFile : INIT_FILE_B2,
+        Writeable: true,
+    ) (
+        clk_i                  ,
+        rst_i                  ,
+        address_i: block_2_addr,
+        we_i     : block_2_we  ,
+        data_i   : block_2_din ,
+        data_o   : block_2_dout,
+    );
+    inst block_3: Memory::<8> #(
+        Depth: BLOCK_DEPTH,
+        //  InitFile : INIT_FILE_B3,
+        Writeable: true,
+    ) (
+        clk_i                  ,
+        rst_i                  ,
+        address_i: block_3_addr,
+        we_i     : block_3_we  ,
+        data_i   : block_3_din ,
+        data_o   : block_3_dout,
+    );
+    always_comb {
+        if (alignment == 0) {
+            block_0_addr = addr_i[ADDR_WIDTH - 1:2];
+            block_1_addr = addr_i[ADDR_WIDTH - 1:2];
+            block_2_addr = addr_i[ADDR_WIDTH - 1:2];
+            block_3_addr = addr_i[ADDR_WIDTH - 1:2];
+            block_0_din  = data_i[7:0];
+            block_1_din  = data_i[15:8];
+            block_2_din  = data_i[23:16];
+            block_3_din  = data_i[31:24];
+            case width_i {
+                'b0001: {
+                    block_0_we = we_i;
+                    block_1_we = 0;
+                    block_2_we = 0;
+                    block_3_we = 0;
+                    if sign_extend_i {
+                        data_o = {block_0_dout[msb] repeat 24, block_0_dout};
+                    } else {
+                        data_o = {0 repeat 24, block_0_dout};
+                    }
+                }
+                'b0011: {
+                    block_0_we = we_i;
+                    block_1_we = we_i;
+                    block_2_we = 0;
+                    block_3_we = 0;
+                    if sign_extend_i {
+                        data_o = {block_1_dout[msb] repeat 24, block_1_dout, block_0_dout};
+                    }
+                }
+                'b1111: {
+                    block_0_we = we_i;
+                    block_1_we = we_i;
+                    block_2_we = we_i;
+                    block_3_we = we_i;
+                    data_o     = {block_3_dout, block_2_dout, block_1_dout, block_0_dout};
+                }
+                default: {
+                    block_0_we = 0;
+                    block_1_we = 0;
+                    block_2_we = 0;
+                    block_3_we = 0;
+                    data_o     = {block_3_dout, block_2_dout, block_1_dout, block_0_dout};
+                }
+            }
+            data_o = {block_3_dout, block_2_dout, block_1_dout, block_0_dout};
+        } else if (alignment == 1) {
+            block_0_addr = addr_i[ADDR_WIDTH - 1:2] + 1;
+            block_1_addr = addr_i[ADDR_WIDTH - 1:2];
+            block_2_addr = addr_i[ADDR_WIDTH - 1:2];
+            block_3_addr = addr_i[ADDR_WIDTH - 1:2];
+            block_1_din  = data_i[7:0];
+            block_2_din  = data_i[15:8];
+            block_3_din  = data_i[23:16];
+            block_0_din  = data_i[31:24];
+            case width_i {
+                'b0001: {
+                    block_1_we = we_i;
+                    block_2_we = 0;
+                    block_3_we = 0;
+                    block_0_we = 0;
+                    if sign_extend_i {
+                        data_o = {block_1_dout[msb] repeat 24, block_1_dout};
+                    } else {
+                        data_o = {0 repeat 24, block_1_dout};
+                    }
+                }
+                'b0011: {
+                    block_1_we = we_i;
+                    block_2_we = we_i;
+                    block_3_we = 0;
+                    block_0_we = 0;
+                    if sign_extend_i {
+                        data_o = {block_2_dout[msb] repeat 16, block_2_dout, block_1_dout};
+                    } else {
+                        data_o = {0 repeat 16, block_2_dout, block_1_dout};
+                    }
+                }
+                'b1111: {
+                    block_1_we = we_i;
+                    block_2_we = we_i;
+                    block_3_we = we_i;
+                    block_0_we = we_i;
+                    // sign extend doesn't matter since access is word wide
+                    data_o = {block_0_dout, block_3_dout, block_2_dout, block_1_dout};
+                }
+                default: {
+                    block_0_we = 0;
+                    block_1_we = 0;
+                    block_2_we = 0;
+                    block_3_we = 0;
+                    data_o     = {block_3_dout, block_2_dout, block_1_dout, block_0_dout};
+                }
+            }
+            data_o = {block_0_dout, block_3_dout, block_2_dout, block_1_dout};
+        } else if (alignment == 2) {
+            block_0_addr = addr_i[ADDR_WIDTH - 1:2] + 1;
+            block_1_addr = addr_i[ADDR_WIDTH - 1:2] + 1;
+            block_2_addr = addr_i[ADDR_WIDTH - 1:2];
+            block_3_addr = addr_i[ADDR_WIDTH - 1:2];
+            block_2_din  = data_i[7:0];
+            block_3_din  = data_i[15:8];
+            block_0_din  = data_i[23:16];
+            block_1_din  = data_i[31:24];
+            case width_i {
+                'b0001: {
+                    block_2_we = we_i;
+                    block_3_we = 0;
+                    block_0_we = 0;
+                    block_1_we = 0;
+                    if sign_extend_i {
+                        data_o = {block_2_dout[msb] repeat 24, block_2_dout};
+                    } else {
+                        data_o = {0 repeat 24, block_2_dout};
+                    }
+                }
+                'b0011: {
+                    block_2_we = we_i;
+                    block_3_we = we_i;
+                    block_0_we = 0;
+                    block_1_we = 0;
+                    if sign_extend_i {
+                        data_o = {block_3_dout[msb] repeat 16, block_3_dout, block_2_dout};
+                    } else {
+                        data_o = {0 repeat 16, block_3_dout, block_2_dout};
+                    }
+                }
+                'b1111: {
+                    block_2_we = we_i;
+                    block_3_we = we_i;
+                    block_0_we = we_i;
+                    block_1_we = we_i;
+                    // sign extension doesn't matter since access is word wide
+                    data_o = {block_1_dout, block_0_dout, block_3_dout, block_2_dout};
+                }
+                default: {
+                    block_0_we = 0;
+                    block_1_we = 0;
+                    block_2_we = 0;
+                    block_3_we = 0;
+                    data_o     = {block_3_dout, block_2_dout, block_1_dout, block_0_dout};
+                }
+            }
+        } else if (alignment == 3) {
+            block_0_addr = addr_i[ADDR_WIDTH - 1:2] + 1;
+            block_1_addr = addr_i[ADDR_WIDTH - 1:2] + 1;
+            block_2_addr = addr_i[ADDR_WIDTH - 1:2] + 1;
+            block_3_addr = addr_i[ADDR_WIDTH - 1:2];
+            block_3_din  = data_i[7:0];
+            block_0_din  = data_i[15:8];
+            block_1_din  = data_i[23:16];
+            block_2_din  = data_i[31:24];
+            case width_i {
+                'b0001: {
+                    block_3_we = if we_i ? 1 : 0;
+                    block_0_we = 0;
+                    block_1_we = 0;
+                    block_2_we = 0;
+                    if sign_extend_i {
+                        data_o = {block_3_dout[msb] repeat 24, block_3_dout};
+                    } else {
+                        data_o = {0 repeat 24, block_3_dout};
+                    }
+                }
+                'b0011: {
+                    block_3_we = if we_i ? 1 : 0;
+                    block_0_we = if we_i ? 1 : 0;
+                    block_1_we = 0;
+                    block_2_we = 0;
+                    if sign_extend_i {
+                        data_o = {block_0_dout[msb] repeat 16, block_0_dout, block_3_dout};
+                    } else {
+                        data_o = {0 repeat 16, block_0_dout, block_3_dout};
+                    }
+                }
+                'b1111: {
+                    block_3_we = if we_i ? 1 : 0;
+                    block_0_we = if we_i ? 1 : 0;
+                    block_1_we = if we_i ? 1 : 0;
+                    block_2_we = if we_i ? 1 : 0;
+                    // sign extension doesn't matter since access is word wide
+                    data_o = {block_2_dout, block_1_dout, block_0_dout, block_3_dout};
+                }
+                default: {
+                    block_0_we = 0;
+                    block_1_we = 0;
+                    block_2_we = 0;
+                    block_3_we = 0;
+                    data_o     = {block_3_dout, block_2_dout, block_1_dout, block_0_dout};
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,12 @@
+package ALUPackage {
+    enum ALUOp: logic<3> {
+        ALU_ADD,
+        ALU_SLL,
+        ALU_SLT,
+        ALU_SLTU,
+        ALU_XOR,
+        ALU_SR,
+        ALU_OR,
+        ALU_AND,
+    }
+}

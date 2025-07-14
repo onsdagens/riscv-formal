@@ -1,0 +1,10 @@
+[project]
+name = "hippo_memory"
+version = "0.1.0"
+[build]
+source = "src"
+target = { type = "directory", path = "target" }
+exclude_std = true
+
+[test]
+#include_files = ["./test.mem"]

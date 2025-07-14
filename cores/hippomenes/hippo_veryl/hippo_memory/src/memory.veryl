@@ -1,0 +1,31 @@
+// Really this may be generic over the address and data TYPES
+// For interleaved memory (allowing unaligned access), you would combine 4
+// of these into one top level memory module, TODO
+pub module Memory::<Width: u32> #(
+    param Depth    : u32  = 1024 / 4     ,
+    param AddrWidth: u32  = $clog2(Depth),
+    param Writeable: bool = false        ,
+    // param InitFile : string = ""           ,
+) (
+    clk_i    : input  clock           ,
+    rst_i    : input  reset           ,
+    address_i: input  logic<AddrWidth>,
+    we_i     : input  logic           ,
+    data_i   : input  logic<Width>    ,
+    data_o   : output logic<Width>    ,
+) {
+    var memory: logic<Width> [Depth];
+    always_ff {
+        if_reset {
+            // if there is no InitFile, this is defined to initialize to 0's.
+            //         $readmemh(InitFile, memory);
+            data_o = '0;
+        } else {
+            if we_i {
+                memory[address_i] = data_i;
+            } else {
+                data_o = memory[address_i];
+            }
+        }
+    }
+}
